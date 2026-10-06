@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+  <base target="_top">
+
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1">
+
+  <title>RUANG PENJAS</title>
+
+  <?!= include('Styles'); ?>
+
+</head>
+
+<body>
+
+<!-- =================================================
+     LOGIN
+================================================== -->
+
+<div id="loginPage" class="login-page">
+
+  <div class="login-card">
+
+    <div class="logo-circle">
+      🏃
+    </div>
+
+    <h1>RUANG PENJAS</h1>
+
+    <p class="login-subtitle">
+      Sistem Administrasi Guru PJOK
+    </p>
+
+    <div class="login-tabs">
+
+      <button
+        id="tabGuru"
+        class="login-tab active"
+        onclick="switchLogin('guru')">
+        👨‍🏫 Guru / Admin
+      </button>
+
+      <button
+        id="tabSiswa"
+        class="login-tab"
+        onclick="switchLogin('siswa')">
+        👨‍🎓 Siswa
+      </button>
+
+    </div>
+
+
+    <!-- LOGIN GURU -->
+
+    <div id="loginGuru">
+
+      <div class="form-group">
+
+        <label>Username</label>
+
+        <input
+          id="guruUsername"
+          type="text"
+          placeholder="Masukkan username">
+
+      </div>
+
+
+      <div class="form-group">
+
+        <label>Password</label>
+
+        <input
+          id="guruPassword"
+          type="password"
+          placeholder="Masukkan password">
+
+      </div>
+
+
+      <button
+        class="btn btn-primary btn-full"
+        onclick="loginGuru()">
+
+        🔐 Masuk Guru / Admin
+
+      </button>
+
+    </div>
+
+
+    <!-- LOGIN SISWA -->
+
+    <div id="loginSiswa" style="display:none">
+
+      <div class="form-group">
+
+        <label>Nama Siswa</label>
+
+        <input
+          id="siswaNama"
+          type="text"
+          placeholder="Masukkan nama lengkap">
+
+      </div>
+
+
+      <div class="form-group">
+
+        <label>Kelas</label>
+
+        <select id="siswaKelas"></select>
+
+      </div>
+
+
+      <button
+        class="btn btn-primary btn-full"
+        onclick="loginSiswa()">
+
+        👨‍🎓 Masuk Siswa
+
+      </button>
+
+    </div>
+
+
+    <div id="loginMessage"
+         class="message">
+    </div>
+
+  </div>
+
+</div>
+
+
+<!-- =================================================
+     APP
+================================================== -->
+
+<div id="appPage"
+     class="app-page"
+     style="display:none">
+
+
+  <!-- SIDEBAR -->
+
+  <aside class="sidebar">
+
+    <div class="brand">
+
+      <div class="brand-icon">
+        🏃
+      </div>
+
+      <div>
+        <strong>RUANG PENJAS</strong>
+        <small>SDN 206 Palembang</small>
+      </div>
+
+    </div>
+
+
+    <nav id="sidebarMenu"></nav>
+
+
+    <div class="sidebar-bottom">
+
+      <button
+        class="logout-btn"
+        onclick="logoutApp()">
+
+        🚪 Keluar
+
+      </button>
+
+    </div>
+
+  </aside>
+
+
+  <!-- MAIN -->
+
+  <main class="main-content">
+
+    <header class="topbar">
+
+      <div>
+
+        <button
+          class="mobile-menu"
+          onclick="toggleSidebar()">
+          ☰
+        </button>
+
+        <span id="pageTitle">
+          Dashboard
+        </span>
+
+      </div>
+
+
+      <div class="user-info">
+
+        <span id="userName">
+          -
+        </span>
+
+        <span id="userRole"
+              class="role-badge">
+          -
+        </span>
+
+      </div>
+
+    </header>
+
+
+    <section id="content"
+             class="content">
+    </section>
+
+  </main>
+
+</div>
+
+
+<div id="loading"
+     class="loading"
+     style="display:none">
+
+  <div class="spinner"></div>
+
+  <span>Memproses...</span>
+
+</div>
+
+
+<div id="toast"
+     class="toast">
+</div>
+
+
+<?!= include('Script'); ?>
+
+</body>
+
+</html>
