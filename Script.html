@@ -1,0 +1,3089 @@
+<script>
+
+/* =====================================================
+   STATE
+===================================================== */
+
+const state = {
+  token: null,
+  user: null,
+  classes: [],
+  settings: {},
+  currentClass: ''
+};
+
+
+/* =====================================================
+   GOOGLE SCRIPT RUNNER
+===================================================== */
+
+function server(functionName, ...args) {
+
+  return new Promise(function(resolve, reject) {
+
+    showLoading(true);
+
+    const runner =
+      google.script.run
+        .withSuccessHandler(function(result) {
+          showLoading(false);
+          resolve(result);
+        })
+        .withFailureHandler(function(error) {
+          showLoading(false);
+          reject(error);
+        });
+
+    runner[functionName](...args);
+  });
+}
+
+
+/* =====================================================
+   START
+===================================================== */
+
+document.addEventListener(
+  'DOMContentLoaded',
+  function() {
+
+    initializeLogin();
+  }
+);
+
+
+async function initializeLogin() {
+
+  try {
+
+    const data = await server('setupApp');
+
+    const appData =
+      await server('getAppDataForLogin');
+
+  } catch (error) {
+
+    // Normal jika belum login.
+  }
+
+  loadLoginClasses();
+}
+
+
+async function loadLoginClasses() {
+
+  try {
+
+    const result =
+      await server('getAppData', '');
+
+    // Jika tidak ada session,
+    // getAppData akan error.
+
+  } catch (error) {
+
+    // Tidak masalah.
+  }
+
+  const classes =
+    [
+      '1A',
+      '1B',
+      '1C',
+      '5A',
+      '5B',
+      '6A',
+      '6B'
+    ];
+
+  const select =
+    document.getElementById('siswaKelas');
+
+  select.innerHTML =
+    classes.map(function(kelas) {
+
+      return `
+        <option value="${kelas}">
+          ${kelas}
+        </option>
+      `;
+
+    }).join('');
+}
+
+
+/* =====================================================
+   LOGIN SWITCH
+===================================================== */
+
+function switchLogin(type) {
+
+  const guru =
+    document.getElementById('loginGuru');
+
+  const siswa =
+    document.getElementById('loginSiswa');
+
+  const tabGuru =
+    document.getElementById('tabGuru');
+
+  const tabSiswa =
+    document.getElementById('tabSiswa');
+
+  if (type === 'guru') {
+
+    guru.style.display = 'block';
+    siswa.style.display = 'none';
+
+    tabGuru.classList.add('active');
+    tabSiswa.classList.remove('active');
+
+  } else {
+
+    guru.style.display = 'none';
+    siswa.style.display = 'block';
+
+    tabGuru.classList.remove('active');
+    tabSiswa.classList.add('active');
+  }
+
+  clearLoginMessage();
+}
+
+
+/* =====================================================
+   LOGIN GURU
+===================================================== */
+
+async function loginGuru() {
+
+  const username =
+    document.getElementById('guruUsername').value.trim();
+
+  const password =
+    document.getElementById('guruPassword').value;
+
+  if (!username || !password) {
+
+    showLoginMessage(
+      'Username dan password wajib diisi.',
+      true
+    );
+
+    return;
+  }
+
+  try {
+
+    const result =
+      await server(
+        'loginTeacher',
+        username,
+        password
+      );
+
+    enterApp(result);
+
+  } catch (error) {
+
+    showLoginMessage(
+      error.message || 'Login gagal.',
+      true
+    );
+  }
+}
+
+
+/* =====================================================
+   LOGIN SISWA
+===================================================== */
+
+async function loginSiswa() {
+
+  const nama =
+    document.getElementById('siswaNama').value.trim();
+
+  const kelas =
+    document.getElementById('siswaKelas').value;
+
+  if (!nama || !kelas) {
+
+    showLoginMessage(
+      'Nama dan kelas wajib diisi.',
+      true
+    );
+
+    return;
+  }
+
+  try {
+
+    const result =
+      await server(
+        'loginStudent',
+        nama,
+        kelas
+      );
+
+    enterApp(result);
+
+  } catch (error) {
+
+    showLoginMessage(
+      error.message || 'Login gagal.',
+      true
+    );
+  }
+}
+
+
+/* =====================================================
+   ENTER APP
+===================================================== */
+
+async function enterApp(result) {
+
+  state.token = result.token;
+  state.user = result.user;
+
+  document.getElementById(
+    'loginPage'
+  ).style.display = 'none';
+
+  document.getElementById(
+    'appPage'
+  ).style.display = 'flex';
+
+  document.getElementById(
+    'userName'
+  ).textContent = state.user.nama;
+
+  document.getElementById(
+    'userRole'
+  ).textContent = state.user.role;
+
+  try {
+
+    const data =
+      await server(
+        'getAppData',
+        state.token
+      );
+
+    state.classes = data.classes;
+    state.settings = data.settings;
+
+  } catch (error) {
+
+    state.classes =
+      [
+        '1A',
+        '1B',
+        '1C',
+        '5A',
+        '5B',
+        '6A',
+        '6B'
+      ];
+  }
+
+  if (state.user.role === 'Siswa') {
+
+    state.currentClass =
+      state.user.kelas;
+
+  } else {
+
+    state.currentClass =
+      state.classes[0] || '1A';
+  }
+
+  renderMenu();
+
+  showView('dashboard');
+}
+
+
+/* =====================================================
+   MENU
+===================================================== */
+
+function renderMenu() {
+
+  const menu =
+    document.getElementById('sidebarMenu');
+
+  const isStudent =
+    state.user.role === 'Siswa';
+
+  const items = [];
+
+  items.push([
+    'dashboard',
+    '🏠',
+    'Dashboard'
+  ]);
+
+  if (!isStudent) {
+
+    items.push([
+      'siswa',
+      '👥',
+      'Data Siswa'
+    ]);
+
+    items.push([
+      'import',
+      '📥',
+      'Impor Siswa'
+    ]);
+
+    items.push([
+      'curriculum',
+      '📚',
+      'CP / TP / KKTP'
+    ]);
+
+    items.push([
+      'prota',
+      '📅',
+      'PROTA'
+    ]);
+
+    items.push([
+      'promes',
+      '📆',
+      'PROMES'
+    ]);
+
+    items.push([
+      'jurnal',
+      '📝',
+      'Jurnal Mengajar'
+    ]);
+
+    items.push([
+      'nilai',
+      '📊',
+      'Asesmen / Nilai'
+    ]);
+
+    items.push([
+      'remedial',
+      '🔄',
+      'Remedial / Pengayaan'
+    ]);
+
+  }
+
+  items.push([
+    'laporan',
+    '📈',
+    'Laporan Nilai'
+  ]);
+
+
+  menu.innerHTML =
+    items.map(function(item) {
+
+      return `
+        <button
+          class="nav-item"
+          data-menu="${item[0]}"
+          onclick="showView('${item[0]}')">
+
+          ${item[1]} ${item[2]}
+
+        </button>
+      `;
+
+    }).join('');
+}
+
+
+/* =====================================================
+   VIEW ROUTER
+===================================================== */
+
+async function showView(view) {
+
+  document
+    .querySelectorAll('.nav-item')
+    .forEach(function(item) {
+
+      item.classList.toggle(
+        'active',
+        item.dataset.menu === view
+      );
+    });
+
+  const titles = {
+    dashboard: 'Dashboard',
+    siswa: 'Data Siswa',
+    import: 'Impor Data Siswa',
+    curriculum: 'CP / TP / KKTP',
+    prota: 'Program Tahunan',
+    promes: 'Program Semester',
+    jurnal: 'Jurnal Mengajar',
+    nilai: 'Asesmen / Nilai',
+    remedial: 'Remedial / Pengayaan',
+    laporan: 'Laporan Nilai'
+  };
+
+  document.getElementById(
+    'pageTitle'
+  ).textContent = titles[view] || 'RUANG PENJAS';
+
+
+  switch(view) {
+
+    case 'dashboard':
+      await renderDashboard();
+      break;
+
+    case 'siswa':
+      await renderStudents();
+      break;
+
+    case 'import':
+      renderImport();
+      break;
+
+    case 'curriculum':
+      await renderCurriculum();
+      break;
+
+    case 'prota':
+      await renderProta();
+      break;
+
+    case 'promes':
+      await renderPromes();
+      break;
+
+    case 'jurnal':
+      await renderJournal();
+      break;
+
+    case 'nilai':
+      await renderAssessment();
+      break;
+
+    case 'remedial':
+      await renderRemedial();
+      break;
+
+    case 'laporan':
+      await renderReport();
+      break;
+  }
+}
+
+
+/* =====================================================
+   CLASS SELECT
+===================================================== */
+
+function classOptions(selected) {
+
+  return state.classes.map(function(kelas) {
+
+    return `
+      <option
+        value="${escapeHtml(kelas)}"
+        ${kelas === selected ? 'selected' : ''}>
+
+        ${escapeHtml(kelas)}
+
+      </option>
+    `;
+
+  }).join('');
+}
+
+
+/* =====================================================
+   DASHBOARD
+===================================================== */
+
+async function renderDashboard() {
+
+  const content =
+    document.getElementById('content');
+
+  const isStudent =
+    state.user.role === 'Siswa';
+
+  content.innerHTML = `
+
+    <div class="page-heading">
+
+      <div>
+
+        <h2>Dashboard RUANG PENJAS</h2>
+
+        <p>
+          Selamat datang,
+          <strong>
+            ${escapeHtml(state.user.nama)}
+          </strong>
+        </p>
+
+      </div>
+
+      ${
+        !isStudent
+        ? `
+          <div style="min-width:150px">
+
+            <label>Kelas</label>
+
+            <select
+              id="dashboardClass"
+              onchange="changeDashboardClass()">
+
+              ${classOptions(state.currentClass)}
+
+            </select>
+
+          </div>
+        `
+        : `
+          <div class="badge badge-info">
+            Kelas ${escapeHtml(state.user.kelas)}
+          </div>
+        `
+      }
+
+    </div>
+
+    <div id="dashboardCards"
+         class="card-grid">
+    </div>
+
+    <div class="panel">
+
+      <h3>📌 Informasi RUANG PENJAS</h3>
+
+      <p>
+        Sistem administrasi pembelajaran PJOK
+        untuk membantu guru mengelola data siswa,
+        kurikulum, jurnal, asesmen, remedial,
+        pengayaan dan laporan nilai.
+      </p>
+
+      <p>
+        <strong>
+          SD Negeri 206 Palembang
+        </strong>
+      </p>
+
+    </div>
+  `;
+
+  await loadDashboard();
+}
+
+
+async function changeDashboardClass() {
+
+  state.currentClass =
+    document.getElementById(
+      'dashboardClass'
+    ).value;
+
+  await loadDashboard();
+}
+
+
+async function loadDashboard() {
+
+  try {
+
+    const data =
+      await server(
+        'getDashboard',
+        state.token,
+        state.currentClass
+      );
+
+    document.getElementById(
+      'dashboardCards'
+    ).innerHTML = `
+
+      <div class="stat-card">
+
+        <div class="stat-icon">👨‍🎓</div>
+
+        <div class="stat-label">
+          Jumlah Siswa
+        </div>
+
+        <div class="stat-value">
+          ${data.jumlahSiswa}
+        </div>
+
+      </div>
+
+
+      <div class="stat-card">
+
+        <div class="stat-icon">📊</div>
+
+        <div class="stat-label">
+          Jumlah Nilai
+        </div>
+
+        <div class="stat-value">
+          ${data.jumlahNilai}
+        </div>
+
+      </div>
+
+
+      <div class="stat-card">
+
+        <div class="stat-icon">📈</div>
+
+        <div class="stat-label">
+          Rata-rata Nilai
+        </div>
+
+        <div class="stat-value">
+          ${data.rataRata}
+        </div>
+
+      </div>
+
+
+      <div class="stat-card">
+
+        <div class="stat-icon">✅</div>
+
+        <div class="stat-label">
+          Tuntas
+        </div>
+
+        <div class="stat-value">
+          ${data.tuntas}
+        </div>
+
+      </div>
+
+
+      <div class="stat-card">
+
+        <div class="stat-icon">🔄</div>
+
+        <div class="stat-label">
+          Remedial
+        </div>
+
+        <div class="stat-value">
+          ${data.remedial}
+        </div>
+
+      </div>
+
+
+      <div class="stat-card">
+
+        <div class="stat-icon">📝</div>
+
+        <div class="stat-label">
+          Jurnal
+        </div>
+
+        <div class="stat-value">
+          ${data.jurnal}
+        </div>
+
+      </div>
+
+    `;
+
+  } catch (error) {
+
+    showToast(
+      error.message,
+      true
+    );
+  }
+}
+
+
+/* =====================================================
+   DATA SISWA
+===================================================== */
+
+async function renderStudents() {
+
+  const content =
+    document.getElementById('content');
+
+  content.innerHTML = `
+
+    <div class="page-heading">
+
+      <div>
+        <h2>👥 Data Siswa</h2>
+        <p>
+          Data siswa dan kontak orang tua/wali.
+        </p>
+      </div>
+
+      <button
+        class="btn btn-primary"
+        onclick="showView('import')">
+
+        📥 Impor Banyak Siswa
+
+      </button>
+
+    </div>
+
+
+    <div class="panel">
+
+      <div class="form-grid">
+
+        <div class="form-group">
+
+          <label>Filter Kelas</label>
+
+          <select
+            id="studentClass"
+            onchange="loadStudentsTable()">
+
+            ${classOptions(state.currentClass)}
+
+          </select>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div id="studentsTable"></div>
+
+  `;
+
+  await loadStudentsTable();
+}
+
+
+async function loadStudentsTable() {
+
+  const kelas =
+    document.getElementById(
+      'studentClass'
+    ).value;
+
+  state.currentClass = kelas;
+
+  try {
+
+    const rows =
+      await server(
+        'getStudents',
+        state.token,
+        kelas
+      );
+
+    const html =
+      rows.length
+      ? `
+
+        <div class="panel">
+
+          <div class="table-wrapper">
+
+            <table>
+
+              <thead>
+
+                <tr>
+
+                  <th>No</th>
+                  <th>Nama</th>
+                  <th>Kelas</th>
+                  <th>NISN</th>
+                  <th>JK</th>
+                  <th>Orang Tua</th>
+                  <th>WhatsApp</th>
+                  <th>Aksi</th>
+
+                </tr>
+
+              </thead>
+
+              <tbody>
+
+                ${rows.map(function(row, i) {
+
+                  return `
+
+                    <tr>
+
+                      <td>${i + 1}</td>
+
+                      <td>
+                        ${escapeHtml(row.Nama)}
+                      </td>
+
+                      <td>
+                        ${escapeHtml(row.Kelas)}
+                      </td>
+
+                      <td>
+                        ${escapeHtml(row.NISN || '-')}
+                      </td>
+
+                      <td>
+                        ${escapeHtml(row.JenisKelamin || '-')}
+                      </td>
+
+                      <td>
+                        ${escapeHtml(row.NamaOrangTua || '-')}
+                      </td>
+
+                      <td>
+                        ${escapeHtml(row.NoWAOrangTua || '-')}
+                      </td>
+
+                      <td>
+
+                        ${
+                          row.NoWAOrangTua
+                          ? `
+                            <button
+                              class="btn btn-success"
+                              onclick="openWhatsApp(
+                                '${row.ID}'
+                              )">
+
+                              🟢 WA
+
+                            </button>
+                          `
+                          : `
+                            <span class="badge badge-warning">
+                              Belum ada WA
+                            </span>
+                          `
+                        }
+
+                        <button
+                          class="btn btn-danger"
+                          onclick="deleteData(
+                            'siswa',
+                            '${row.ID}'
+                          )">
+
+                          🗑️
+
+                        </button>
+
+                      </td>
+
+                    </tr>
+
+                  `;
+
+                }).join('')}
+
+              </tbody>
+
+            </table>
+
+          </div>
+
+        </div>
+
+      `
+      : `
+
+        <div class="panel">
+
+          <p>
+            Belum ada data siswa untuk kelas
+            <strong>${escapeHtml(kelas)}</strong>.
+          </p>
+
+        </div>
+
+      `;
+
+    document.getElementById(
+      'studentsTable'
+    ).innerHTML = html;
+
+  } catch (error) {
+
+    showToast(
+      error.message,
+      true
+    );
+  }
+}
+
+
+/* =====================================================
+   IMPOR
+===================================================== */
+
+function renderImport() {
+
+  document.getElementById(
+    'content'
+  ).innerHTML = `
+
+    <div class="page-heading">
+
+      <div>
+
+        <h2>📥 Impor Data Siswa</h2>
+
+        <p>
+          Masukkan banyak siswa sekaligus.
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <div class="panel">
+
+      <div class="import-box">
+
+        <h3>
+          📋 Cara Cepat: Copy-Paste dari Excel
+        </h3>
+
+        <p>
+          1. Buka Excel atau Google Sheets.
+          <br>
+          2. Blok seluruh data siswa.
+          <br>
+          3. Copy.
+          <br>
+          4. Paste ke kotak di bawah.
+        </p>
+
+
+        <textarea
+          id="importData"
+          placeholder="Paste data Excel di sini..."></textarea>
+
+
+        <div style="margin-top:15px">
+
+          <button
+            class="btn btn-primary"
+            onclick="importStudentData()">
+
+            📥 Impor Sekarang
+
+          </button>
+
+
+          <button
+            class="btn btn-secondary"
+            onclick="loadTemplate()">
+
+            📋 Lihat Template
+
+          </button>
+
+
+          <button
+            class="btn btn-success"
+            onclick="downloadTemplate()">
+
+            📄 Download Template CSV
+
+          </button>
+
+        </div>
+
+      </div>
+
+
+      <div class="import-help">
+
+        <h3>Format Kolom</h3>
+
+        <p>
+          Gunakan urutan:
+        </p>
+
+        <code>
+          Nama Siswa | Kelas | NISN |
+          Jenis Kelamin | Nama Orang Tua |
+          No WA | Status
+        </code>
+
+        <p>
+          Contoh nomor WA:
+          <strong>08123456789</strong>
+        </p>
+
+        <p>
+          Sistem otomatis mengubahnya menjadi
+          format WhatsApp internasional:
+          <strong>628123456789</strong>.
+        </p>
+
+        <p>
+          Data dengan kombinasi
+          <strong>Nama + Kelas</strong>
+          yang sudah ada akan dianggap duplikat
+          dan tidak dimasukkan lagi.
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <div id="importResult"></div>
+
+  `;
+}
+
+
+async function loadTemplate() {
+
+  try {
+
+    const template =
+      await server(
+        'getImportTemplate'
+      );
+
+    document.getElementById(
+      'importData'
+    ).value = template;
+
+  } catch (error) {
+
+    showToast(
+      error.message,
+      true
+    );
+  }
+}
+
+
+async function importStudentData() {
+
+  const text =
+    document.getElementById(
+      'importData'
+    ).value.trim();
+
+  if (!text) {
+
+    showToast(
+      'Data impor masih kosong.',
+      true
+    );
+
+    return;
+  }
+
+  if (
+    !confirm(
+      'Impor data siswa sekarang?'
+    )
+  ) {
+    return;
+  }
+
+  try {
+
+    const result =
+      await server(
+        'importStudents',
+        state.token,
+        text
+      );
+
+    document.getElementById(
+      'importResult'
+    ).innerHTML = `
+
+      <div class="panel">
+
+        <h3>✅ Hasil Impor</h3>
+
+        <p>
+          Total data:
+          <strong>${result.total}</strong>
+        </p>
+
+        <p>
+          Berhasil:
+          <strong>${result.berhasil}</strong>
+        </p>
+
+        <p>
+          Duplikat:
+          <strong>${result.duplikat}</strong>
+        </p>
+
+        <p>
+          Gagal:
+          <strong>${result.gagal}</strong>
+        </p>
+
+        ${
+          result.detail.length
+          ? `
+            <hr>
+            ${result.detail.join('<br>')}
+          `
+          : ''
+        }
+
+      </div>
+
+    `;
+
+    showToast(
+      'Impor siswa berhasil.'
+    );
+
+  } catch (error) {
+
+    showToast(
+      error.message,
+      true
+    );
+  }
+}
+
+
+function downloadTemplate() {
+
+  const content =
+`Nama Siswa,Kelas,NISN,Jenis Kelamin,Nama Orang Tua,No WA,Status
+Ahmad Fajar,6A,1234567890,L,Bapak Ahmad,08123456789,Aktif
+Siti Aisyah,6A,1234567891,P,Ibu Siti,08129876543,Aktif`;
+
+  const blob =
+    new Blob(
+      [content],
+      {type: 'text/csv;charset=utf-8;'}
+    );
+
+  const url =
+    URL.createObjectURL(blob);
+
+  const a =
+    document.createElement('a');
+
+  a.href = url;
+  a.download =
+    'Template_Import_Siswa_RUANG_PENJAS.csv';
+
+  a.click();
+
+  URL.revokeObjectURL(url);
+}
+
+
+/* =====================================================
+   WHATSAPP
+===================================================== */
+
+async function openWhatsApp(studentId) {
+
+  const message =
+    prompt(
+      'Pesan WhatsApp untuk orang tua:',
+      'Assalamu\'alaikum Bapak/Ibu. Kami dari Guru PJOK SD Negeri 206 Palembang menyampaikan informasi terkait perkembangan pembelajaran PJOK putra/putri Bapak/Ibu. Terima kasih.'
+    );
+
+  if (message === null) return;
+
+  try {
+
+    const result =
+      await server(
+        'getWhatsAppLink',
+        state.token,
+        studentId,
+        message
+      );
+
+    window.open(
+      result.url,
+      '_blank'
+    );
+
+  } catch (error) {
+
+    showToast(
+      error.message,
+      true
+    );
+  }
+}
+
+
+/* =====================================================
+   CP / TP / KKTP
+===================================================== */
+
+async function renderCurriculum() {
+
+  const content =
+    document.getElementById('content');
+
+  content.innerHTML = `
+
+    <div class="page-heading">
+
+      <div>
+        <h2>📚 CP / TP / KKTP</h2>
+        <p>
+          Perencanaan pembelajaran PJOK.
+        </p>
+      </div>
+
+    </div>
+
+
+    <div class="panel">
+
+      <form id="cpForm">
+
+        <div class="form-grid">
+
+          <div class="form-group">
+
+            <label>Kelas</label>
+
+            <select id="cpKelas">
+              ${classOptions(state.currentClass)}
+            </select>
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>Fase</label>
+
+            <select id="cpFase">
+
+              <option>Fase A</option>
+              <option>Fase B</option>
+              <option>Fase C</option>
+
+            </select>
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>Semester</label>
+
+            <select id="cpSemester">
+
+              <option>1</option>
+              <option>2</option>
+
+            </select>
+
+          </div>
+
+
+          <div class="form-group full">
+
+            <label>CP</label>
+
+            <textarea
+              id="cpCP"
+              required></textarea>
+
+          </div>
+
+
+          <div class="form-group full">
+
+            <label>Tujuan Pembelajaran (TP)</label>
+
+            <textarea
+              id="cpTP"
+              required></textarea>
+
+          </div>
+
+
+          <div class="form-group full">
+
+            <label>KKTP</label>
+
+            <textarea
+              id="cpKKTP"></textarea>
+
+          </div>
+
+
+          <div class="form-group full">
+
+            <label>Kriteria Ketercapaian</label>
+
+            <textarea
+              id="cpKriteria"></textarea>
+
+          </div>
+
+        </div>
+
+
+        <button
+          type="submit"
+          class="btn btn-primary">
+
+          💾 Simpan CP / TP / KKTP
+
+        </button>
+
+      </form>
+
+    </div>
+
+
+    <div id="cpTable"></div>
+
+  `;
+
+  document.getElementById(
+    'cpForm'
+  ).onsubmit = saveCPData;
+
+  await loadModuleTable(
+    'cp',
+    'cpTable'
+  );
+}
+
+
+async function saveCPData(event) {
+
+  event.preventDefault();
+
+  try {
+
+    await server(
+      'saveCP',
+      state.token,
+      {
+        Kelas:
+          document.getElementById('cpKelas').value,
+
+        Fase:
+          document.getElementById('cpFase').value,
+
+        Semester:
+          document.getElementById('cpSemester').value,
+
+        CP:
+          document.getElementById('cpCP').value,
+
+        TP:
+          document.getElementById('cpTP').value,
+
+        KKTP:
+          document.getElementById('cpKKTP').value,
+
+        Kriteria:
+          document.getElementById('cpKriteria').value
+      }
+    );
+
+    event.target.reset();
+
+    showToast(
+      'CP / TP / KKTP berhasil disimpan.'
+    );
+
+    await loadModuleTable(
+      'cp',
+      'cpTable'
+    );
+
+  } catch (error) {
+
+    showToast(
+      error.message,
+      true
+    );
+  }
+}
+
+
+/* =====================================================
+   PROTA
+===================================================== */
+
+async function renderProta() {
+
+  document.getElementById(
+    'content'
+  ).innerHTML = `
+
+    <div class="page-heading">
+
+      <h2>📅 Program Tahunan</h2>
+
+    </div>
+
+
+    <div class="panel">
+
+      <form id="protaForm">
+
+        <div class="form-grid">
+
+          <div class="form-group">
+
+            <label>Kelas</label>
+
+            <select id="protaKelas">
+              ${classOptions(state.currentClass)}
+            </select>
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>Semester</label>
+
+            <select id="protaSemester">
+
+              <option>1</option>
+              <option>2</option>
+
+            </select>
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>Bulan</label>
+
+            <input id="protaBulan">
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>JP</label>
+
+            <input
+              id="protaJP"
+              type="number">
+
+          </div>
+
+
+          <div class="form-group full">
+
+            <label>Materi</label>
+
+            <textarea
+              id="protaMateri"></textarea>
+
+          </div>
+
+
+          <div class="form-group full">
+
+            <label>Keterangan</label>
+
+            <textarea
+              id="protaKet"></textarea>
+
+          </div>
+
+        </div>
+
+
+        <button
+          class="btn btn-primary"
+          type="submit">
+
+          💾 Simpan PROTA
+
+        </button>
+
+      </form>
+
+    </div>
+
+
+    <div id="protaTable"></div>
+
+  `;
+
+  document.getElementById(
+    'protaForm'
+  ).onsubmit = saveProtaData;
+
+  await loadModuleTable(
+    'prota',
+    'protaTable'
+  );
+}
+
+
+async function saveProtaData(event) {
+
+  event.preventDefault();
+
+  try {
+
+    await server(
+      'saveProta',
+      state.token,
+      {
+        Kelas:
+          document.getElementById('protaKelas').value,
+
+        Semester:
+          document.getElementById('protaSemester').value,
+
+        Bulan:
+          document.getElementById('protaBulan').value,
+
+        Materi:
+          document.getElementById('protaMateri').value,
+
+        JP:
+          document.getElementById('protaJP').value,
+
+        Keterangan:
+          document.getElementById('protaKet').value
+      }
+    );
+
+    event.target.reset();
+
+    showToast(
+      'PROTA berhasil disimpan.'
+    );
+
+    await loadModuleTable(
+      'prota',
+      'protaTable'
+    );
+
+  } catch (error) {
+
+    showToast(
+      error.message,
+      true
+    );
+  }
+}
+
+
+/* =====================================================
+   PROMES
+===================================================== */
+
+async function renderPromes() {
+
+  document.getElementById(
+    'content'
+  ).innerHTML = `
+
+    <div class="page-heading">
+
+      <h2>📆 Program Semester</h2>
+
+    </div>
+
+
+    <div class="panel">
+
+      <form id="promesForm">
+
+        <div class="form-grid">
+
+          <div class="form-group">
+
+            <label>Kelas</label>
+
+            <select id="promesKelas">
+              ${classOptions(state.currentClass)}
+            </select>
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>Semester</label>
+
+            <select id="promesSemester">
+
+              <option>1</option>
+              <option>2</option>
+
+            </select>
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>Minggu</label>
+
+            <input
+              id="promesMinggu"
+              placeholder="Contoh: 1-2">
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>JP</label>
+
+            <input
+              id="promesJP"
+              type="number">
+
+          </div>
+
+
+          <div class="form-group full">
+
+            <label>Materi</label>
+
+            <textarea
+              id="promesMateri"></textarea>
+
+          </div>
+
+
+          <div class="form-group full">
+
+            <label>Keterangan</label>
+
+            <textarea
+              id="promesKet"></textarea>
+
+          </div>
+
+        </div>
+
+
+        <button
+          class="btn btn-primary"
+          type="submit">
+
+          💾 Simpan PROMES
+
+        </button>
+
+      </form>
+
+    </div>
+
+
+    <div id="promesTable"></div>
+
+  `;
+
+  document.getElementById(
+    'promesForm'
+  ).onsubmit = savePromesData;
+
+  await loadModuleTable(
+    'promes',
+    'promesTable'
+  );
+}
+
+
+async function savePromesData(event) {
+
+  event.preventDefault();
+
+  try {
+
+    await server(
+      'savePromes',
+      state.token,
+      {
+        Kelas:
+          document.getElementById('promesKelas').value,
+
+        Semester:
+          document.getElementById('promesSemester').value,
+
+        Minggu:
+          document.getElementById('promesMinggu').value,
+
+        Materi:
+          document.getElementById('promesMateri').value,
+
+        JP:
+          document.getElementById('promesJP').value,
+
+        Keterangan:
+          document.getElementById('promesKet').value
+      }
+    );
+
+    event.target.reset();
+
+    showToast(
+      'PROMES berhasil disimpan.'
+    );
+
+    await loadModuleTable(
+      'promes',
+      'promesTable'
+    );
+
+  } catch (error) {
+
+    showToast(
+      error.message,
+      true
+    );
+  }
+}
+
+
+/* =====================================================
+   JURNAL
+===================================================== */
+
+async function renderJournal() {
+
+  document.getElementById(
+    'content'
+  ).innerHTML = `
+
+    <div class="page-heading">
+
+      <h2>📝 Jurnal Mengajar</h2>
+
+    </div>
+
+
+    <div class="panel">
+
+      <form id="journalForm">
+
+        <div class="form-grid">
+
+          <div class="form-group">
+
+            <label>Tanggal</label>
+
+            <input
+              id="jTanggal"
+              type="date"
+              required>
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>Kelas</label>
+
+            <select id="jKelas">
+              ${classOptions(state.currentClass)}
+            </select>
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>Materi</label>
+
+            <input
+              id="jMateri"
+              required>
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>Kehadiran</label>
+
+            <input
+              id="jHadir"
+              placeholder="Contoh: 28/30">
+
+          </div>
+
+
+          <div class="form-group full">
+
+            <label>Tujuan Pembelajaran</label>
+
+            <textarea id="jTujuan"></textarea>
+
+          </div>
+
+
+          <div class="form-group full">
+
+            <label>Kegiatan Pembelajaran</label>
+
+            <textarea id="jKegiatan"></textarea>
+
+          </div>
+
+
+          <div class="form-group full">
+
+            <label>Refleksi</label>
+
+            <textarea id="jRefleksi"></textarea>
+
+          </div>
+
+
+          <div class="form-group full">
+
+            <label>Tindak Lanjut</label>
+
+            <textarea id="jTindak"></textarea>
+
+          </div>
+
+        </div>
+
+
+        <button
+          class="btn btn-primary"
+          type="submit">
+
+          💾 Simpan Jurnal
+
+        </button>
+
+      </form>
+
+    </div>
+
+
+    <div id="journalTable"></div>
+
+  `;
+
+  document.getElementById(
+    'jTanggal'
+  ).valueAsDate = new Date();
+
+  document.getElementById(
+    'journalForm'
+  ).onsubmit = saveJournalData;
+
+  await loadModuleTable(
+    'jurnal',
+    'journalTable'
+  );
+}
+
+
+async function saveJournalData(event) {
+
+  event.preventDefault();
+
+  try {
+
+    await server(
+      'saveJournal',
+      state.token,
+      {
+        Tanggal:
+          document.getElementById('jTanggal').value,
+
+        Kelas:
+          document.getElementById('jKelas').value,
+
+        Materi:
+          document.getElementById('jMateri').value,
+
+        Tujuan:
+          document.getElementById('jTujuan').value,
+
+        Kegiatan:
+          document.getElementById('jKegiatan').value,
+
+        Kehadiran:
+          document.getElementById('jHadir').value,
+
+        Refleksi:
+          document.getElementById('jRefleksi').value,
+
+        TindakLanjut:
+          document.getElementById('jTindak').value
+      }
+    );
+
+    event.target.reset();
+
+    showToast(
+      'Jurnal berhasil disimpan.'
+    );
+
+    await loadModuleTable(
+      'jurnal',
+      'journalTable'
+    );
+
+  } catch (error) {
+
+    showToast(
+      error.message,
+      true
+    );
+  }
+}
+
+
+/* =====================================================
+   ASSESSMENT
+===================================================== */
+
+async function renderAssessment() {
+
+  document.getElementById(
+    'content'
+  ).innerHTML = `
+
+    <div class="page-heading">
+
+      <h2>📊 Asesmen / Nilai</h2>
+
+    </div>
+
+
+    <div class="panel">
+
+      <form id="assessmentForm">
+
+        <div class="form-grid">
+
+          <div class="form-group">
+
+            <label>Kelas</label>
+
+            <select
+              id="nilaiKelas"
+              onchange="loadAssessmentStudents()">
+
+              ${classOptions(state.currentClass)}
+
+            </select>
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>Nama Siswa</label>
+
+            <select
+              id="nilaiNama">
+
+            </select>
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>Tanggal</label>
+
+            <input
+              id="nilaiTanggal"
+              type="date"
+              required>
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>Jenis Asesmen</label>
+
+            <select id="nilaiJenis">
+
+              <option>Formatif</option>
+              <option>Sumatif</option>
+              <option>Praktik</option>
+              <option>Pengetahuan</option>
+              <option>Keterampilan</option>
+
+            </select>
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>Nama Asesmen</label>
+
+            <input
+              id="nilaiAsesmen"
+              placeholder="Contoh: Passing Bola">
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>Nilai</label>
+
+            <input
+              id="nilaiNilai"
+              type="number"
+              min="0"
+              max="100"
+              required>
+
+          </div>
+
+
+          <div class="form-group full">
+
+            <label>Keterangan</label>
+
+            <textarea
+              id="nilaiKet"></textarea>
+
+          </div>
+
+        </div>
+
+
+        <button
+          class="btn btn-primary"
+          type="submit">
+
+          💾 Simpan Nilai
+
+        </button>
+
+      </form>
+
+    </div>
+
+
+    <div id="nilaiTable"></div>
+
+  `;
+
+  document.getElementById(
+    'nilaiTanggal'
+  ).valueAsDate = new Date();
+
+  document.getElementById(
+    'assessmentForm'
+  ).onsubmit = saveAssessmentData;
+
+  await loadAssessmentStudents();
+
+  await loadModuleTable(
+    'nilai',
+    'nilaiTable'
+  );
+}
+
+
+async function loadAssessmentStudents() {
+
+  const kelas =
+    document.getElementById(
+      'nilaiKelas'
+    ).value;
+
+  try {
+
+    const students =
+      await server(
+        'getStudents',
+        state.token,
+        kelas
+      );
+
+    const select =
+      document.getElementById(
+        'nilaiNama'
+      );
+
+    select.innerHTML =
+      students.map(function(row) {
+
+        return `
+          <option value="${escapeHtml(row.Nama)}"
+                  data-nisn="${escapeHtml(row.NISN || '')}"
+                  data-id="${row.ID}">
+
+            ${escapeHtml(row.Nama)}
+
+          </option>
+        `;
+
+      }).join('');
+
+  } catch (error) {
+
+    showToast(
+      error.message,
+      true
+    );
+  }
+}
+
+
+async function saveAssessmentData(event) {
+
+  event.preventDefault();
+
+  const select =
+    document.getElementById(
+      'nilaiNama'
+    );
+
+  const option =
+    select.options[select.selectedIndex];
+
+  if (!option) {
+
+    showToast(
+      'Belum ada siswa.',
+      true
+    );
+
+    return;
+  }
+
+  try {
+
+    await server(
+      'saveAssessment',
+      state.token,
+      {
+        Kelas:
+          document.getElementById('nilaiKelas').value,
+
+        Nama:
+          option.value,
+
+        NISN:
+          option.dataset.nisn || '',
+
+        Tanggal:
+          document.getElementById('nilaiTanggal').value,
+
+        Asesmen:
+          document.getElementById('nilaiAsesmen').value,
+
+        Jenis:
+          document.getElementById('nilaiJenis').value,
+
+        Nilai:
+          document.getElementById('nilaiNilai').value,
+
+        Keterangan:
+          document.getElementById('nilaiKet').value
+      }
+    );
+
+    document.getElementById(
+      'nilaiNilai'
+    ).value = '';
+
+    showToast(
+      'Nilai berhasil disimpan.'
+    );
+
+    await loadModuleTable(
+      'nilai',
+      'nilaiTable'
+    );
+
+  } catch (error) {
+
+    showToast(
+      error.message,
+      true
+    );
+  }
+}
+
+
+/* =====================================================
+   REMEDIAL
+===================================================== */
+
+async function renderRemedial() {
+
+  document.getElementById(
+    'content'
+  ).innerHTML = `
+
+    <div class="page-heading">
+
+      <h2>🔄 Remedial / Pengayaan</h2>
+
+    </div>
+
+
+    <div class="panel">
+
+      <form id="remedialForm">
+
+        <div class="form-grid">
+
+          <div class="form-group">
+
+            <label>Kelas</label>
+
+            <select
+              id="rKelas"
+              onchange="loadRemedialStudents()">
+
+              ${classOptions(state.currentClass)}
+
+            </select>
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>Nama Siswa</label>
+
+            <select
+              id="rNama">
+            </select>
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>Jenis</label>
+
+            <select id="rJenis">
+
+              <option>Remedial</option>
+              <option>Pengayaan</option>
+
+            </select>
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>Tanggal</label>
+
+            <input
+              id="rTanggal"
+              type="date">
+
+          </div>
+
+
+          <div class="form-group full">
+
+            <label>Materi</label>
+
+            <textarea
+              id="rMateri"></textarea>
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>Nilai Awal</label>
+
+            <input
+              id="rAwal"
+              type="number">
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>Nilai Akhir</label>
+
+            <input
+              id="rAkhir"
+              type="number">
+
+          </div>
+
+
+          <div class="form-group full">
+
+            <label>Tindak Lanjut</label>
+
+            <textarea
+              id="rTindak"></textarea>
+
+          </div>
+
+        </div>
+
+
+        <button
+          class="btn btn-primary"
+          type="submit">
+
+          💾 Simpan
+
+        </button>
+
+      </form>
+
+    </div>
+
+
+    <div id="remedialTable"></div>
+
+  `;
+
+  document.getElementById(
+    'rTanggal'
+  ).valueAsDate = new Date();
+
+  document.getElementById(
+    'remedialForm'
+  ).onsubmit = saveRemedialData;
+
+  await loadRemedialStudents();
+
+  await loadModuleTable(
+    'remedial',
+    'remedialTable'
+  );
+}
+
+
+async function loadRemedialStudents() {
+
+  const kelas =
+    document.getElementById(
+      'rKelas'
+    ).value;
+
+  try {
+
+    const students =
+      await server(
+        'getStudents',
+        state.token,
+        kelas
+      );
+
+    document.getElementById(
+      'rNama'
+    ).innerHTML =
+      students.map(function(row) {
+
+        return `
+          <option
+            value="${escapeHtml(row.Nama)}"
+            data-nisn="${escapeHtml(row.NISN || '')}">
+
+            ${escapeHtml(row.Nama)}
+
+          </option>
+        `;
+
+      }).join('');
+
+  } catch (error) {
+
+    showToast(
+      error.message,
+      true
+    );
+  }
+}
+
+
+async function saveRemedialData(event) {
+
+  event.preventDefault();
+
+  const select =
+    document.getElementById(
+      'rNama'
+    );
+
+  const option =
+    select.options[
+      select.selectedIndex
+    ];
+
+  if (!option) return;
+
+  try {
+
+    await server(
+      'saveRemedial',
+      state.token,
+      {
+        Kelas:
+          document.getElementById('rKelas').value,
+
+        Nama:
+          option.value,
+
+        NISN:
+          option.dataset.nisn || '',
+
+        Jenis:
+          document.getElementById('rJenis').value,
+
+        Tanggal:
+          document.getElementById('rTanggal').value,
+
+        Materi:
+          document.getElementById('rMateri').value,
+
+        NilaiAwal:
+          document.getElementById('rAwal').value,
+
+        NilaiAkhir:
+          document.getElementById('rAkhir').value,
+
+        TindakLanjut:
+          document.getElementById('rTindak').value
+      }
+    );
+
+    showToast(
+      'Data berhasil disimpan.'
+    );
+
+    await loadModuleTable(
+      'remedial',
+      'remedialTable'
+    );
+
+  } catch (error) {
+
+    showToast(
+      error.message,
+      true
+    );
+  }
+}
+
+
+/* =====================================================
+   LAPORAN
+===================================================== */
+
+async function renderReport() {
+
+  const isStudent =
+    state.user.role === 'Siswa';
+
+  document.getElementById(
+    'content'
+  ).innerHTML = `
+
+    <div class="page-heading">
+
+      <div>
+
+        <h2>📈 Laporan Nilai</h2>
+
+        <p>
+          KKM:
+          <strong>
+            ${state.settings.KKM || 75}
+          </strong>
+        </p>
+
+      </div>
+
+      ${
+        !isStudent
+        ? `
+          <div style="min-width:150px">
+
+            <label>Kelas</label>
+
+            <select
+              id="reportClass"
+              onchange="loadReportTable()">
+
+              ${classOptions(state.currentClass)}
+
+            </select>
+
+          </div>
+        `
+        : ''
+      }
+
+    </div>
+
+
+    ${
+      !isStudent
+      ? `
+        <div class="panel">
+
+          <button
+            class="btn btn-success"
+            onclick="generateReportSheet()">
+
+            📊 Buat Laporan ke Spreadsheet
+
+          </button>
+
+        </div>
+      `
+      : ''
+    }
+
+
+    <div id="reportTable"></div>
+
+  `;
+
+  await loadReportTable();
+}
+
+
+async function loadReportTable() {
+
+  const kelas =
+    state.user.role === 'Siswa'
+    ? state.user.kelas
+    : document.getElementById(
+        'reportClass'
+      ).value;
+
+  state.currentClass = kelas;
+
+  try {
+
+    const rows =
+      await server(
+        'getReport',
+        state.token,
+        kelas
+      );
+
+    document.getElementById(
+      'reportTable'
+    ).innerHTML = `
+
+      <div class="panel">
+
+        <div class="table-wrapper">
+
+          <table>
+
+            <thead>
+
+              <tr>
+
+                <th>No</th>
+                <th>Nama</th>
+                <th>NISN</th>
+                <th>Asesmen</th>
+                <th>Rata-rata</th>
+                <th>Status</th>
+                ${
+                  state.user.role !== 'Siswa'
+                  ? '<th>WhatsApp</th>'
+                  : ''
+                }
+
+              </tr>
+
+            </thead>
+
+            <tbody>
+
+              ${
+                rows.map(function(row, i) {
+
+                  let badge =
+                    'badge-info';
+
+                  if (
+                    row.status === 'Tuntas'
+                  ) {
+                    badge =
+                      'badge-success';
+                  }
+
+                  if (
+                    row.status === 'Remedial'
+                  ) {
+                    badge =
+                      'badge-danger';
+                  }
+
+                  return `
+
+                    <tr>
+
+                      <td>${i + 1}</td>
+
+                      <td>
+                        ${escapeHtml(row.nama)}
+                      </td>
+
+                      <td>
+                        ${escapeHtml(row.nisn || '-')}
+                      </td>
+
+                      <td>
+                        ${row.jumlahAsesmen}
+                      </td>
+
+                      <td>
+                        <strong>
+                          ${row.rataRata}
+                        </strong>
+                      </td>
+
+                      <td>
+
+                        <span class="badge ${badge}">
+                          ${row.status}
+                        </span>
+
+                      </td>
+
+                      ${
+                        state.user.role !== 'Siswa'
+                        ? `
+                          <td>
+
+                            ${
+                              row.noWAOrangTua
+                              ? `
+                                <button
+                                  class="btn btn-success"
+                                  onclick="openWhatsApp('${row.id}')">
+
+                                  🟢 WA
+
+                                </button>
+                              `
+                              : '-'
+                            }
+
+                          </td>
+                        `
+                        : ''
+                      }
+
+                    </tr>
+
+                  `;
+
+                }).join('')
+              }
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+
+    `;
+
+  } catch (error) {
+
+    showToast(
+      error.message,
+      true
+    );
+  }
+}
+
+
+async function generateReportSheet() {
+
+  const kelas =
+    document.getElementById(
+      'reportClass'
+    ).value;
+
+  try {
+
+    const result =
+      await server(
+        'generateReportSheet',
+        state.token,
+        kelas
+      );
+
+    showToast(
+      result.message,
+      !result.success
+    );
+
+  } catch (error) {
+
+    showToast(
+      error.message,
+      true
+    );
+  }
+}
+
+
+/* =====================================================
+   GENERIC TABLE
+===================================================== */
+
+async function loadModuleTable(
+  module,
+  elementId
+) {
+
+  try {
+
+    const rows =
+      await server(
+        'getModuleData',
+        state.token,
+        module,
+        state.currentClass
+      );
+
+    if (!rows.length) {
+
+      document.getElementById(
+        elementId
+      ).innerHTML = `
+
+        <div class="panel">
+
+          <p>
+            Belum ada data.
+          </p>
+
+        </div>
+
+      `;
+
+      return;
+    }
+
+    const fields =
+      Object.keys(rows[0])
+        .filter(function(key) {
+
+          return key !== 'ID';
+
+        })
+        .slice(0, 8);
+
+
+    document.getElementById(
+      elementId
+    ).innerHTML = `
+
+      <div class="panel">
+
+        <div class="table-wrapper">
+
+          <table>
+
+            <thead>
+
+              <tr>
+
+                ${fields.map(function(field) {
+
+                  return `
+                    <th>
+                      ${escapeHtml(field)}
+                    </th>
+                  `;
+
+                }).join('')}
+
+                <th>Aksi</th>
+
+              </tr>
+
+            </thead>
+
+
+            <tbody>
+
+              ${rows.slice(0, 100).map(function(row) {
+
+                return `
+
+                  <tr>
+
+                    ${fields.map(function(field) {
+
+                      return `
+                        <td>
+                          ${escapeHtml(
+                            String(row[field] ?? '')
+                              .substring(0, 150)
+                          )}
+                        </td>
+                      `;
+
+                    }).join('')}
+
+
+                    <td>
+
+                      <button
+                        class="btn btn-danger"
+                        onclick="deleteData(
+                          '${module}',
+                          '${row.ID}'
+                        )">
+
+                        🗑️
+
+                      </button>
+
+                    </td>
+
+                  </tr>
+
+                `;
+
+              }).join('')}
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+
+    `;
+
+  } catch (error) {
+
+    showToast(
+      error.message,
+      true
+    );
+  }
+}
+
+
+/* =====================================================
+   DELETE
+===================================================== */
+
+async function deleteData(
+  module,
+  id
+) {
+
+  if (
+    !confirm(
+      'Hapus data ini?'
+    )
+  ) {
+    return;
+  }
+
+  try {
+
+    await server(
+      'deleteRecord',
+      state.token,
+      module,
+      id
+    );
+
+    showToast(
+      'Data berhasil dihapus.'
+    );
+
+    await showView(
+      module === 'siswa'
+        ? 'siswa'
+        : module
+    );
+
+  } catch (error) {
+
+    showToast(
+      error.message,
+      true
+    );
+  }
+}
+
+
+/* =====================================================
+   LOGOUT
+===================================================== */
+
+async function logoutApp() {
+
+  try {
+
+    await server(
+      'logout',
+      state.token
+    );
+
+  } catch (error) {}
+
+  state.token = null;
+  state.user = null;
+
+  document.getElementById(
+    'appPage'
+  ).style.display = 'none';
+
+  document.getElementById(
+    'loginPage'
+  ).style.display = 'flex';
+
+  document.getElementById(
+    'guruUsername'
+  ).value = '';
+
+  document.getElementById(
+    'guruPassword'
+  ).value = '';
+
+  document.getElementById(
+    'siswaNama'
+  ).value = '';
+
+}
+
+
+/* =====================================================
+   UI HELPERS
+===================================================== */
+
+function showLoading(show) {
+
+  document.getElementById(
+    'loading'
+  ).style.display =
+    show ? 'flex' : 'none';
+}
+
+
+function showToast(
+  message,
+  error = false
+) {
+
+  const toast =
+    document.getElementById('toast');
+
+  toast.textContent =
+    message || 'Selesai';
+
+  toast.style.display =
+    'block';
+
+  toast.style.background =
+    error
+      ? '#dc2626'
+      : '#0f172a';
+
+  setTimeout(function() {
+
+    toast.style.display =
+      'none';
+
+  }, 3500);
+}
+
+
+function showLoginMessage(
+  message,
+  error
+) {
+
+  const el =
+    document.getElementById(
+      'loginMessage'
+    );
+
+  el.textContent = message;
+
+  el.className =
+    'message ' +
+    (error
+      ? 'error'
+      : 'success');
+}
+
+
+function clearLoginMessage() {
+
+  const el =
+    document.getElementById(
+      'loginMessage'
+    );
+
+  el.textContent = '';
+}
+
+
+function escapeHtml(value) {
+
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+
+function toggleSidebar() {
+
+  document
+    .querySelector('.sidebar')
+    .classList.toggle('show');
+}
+
+</script>
